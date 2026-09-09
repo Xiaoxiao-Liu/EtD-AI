@@ -1,159 +1,106 @@
-<div align="center">
+<p align="center"><img src="assets/etd-ai-banner.svg" width="100%" alt="EtD-AI"></p>
 
-# EtD-AI
-
-### Learning *When and How to Use Evidence* via Evidence-aware Reinforcement Learning in Multi-agent Clinical Reasoning
+<p align="center"><b>Learning <i>When and How to Use Evidence</i> via Evidence-aware Reinforcement Learning<br>in Multi-agent Clinical Reasoning</b></p>
 
 <!-- Add public author names and affiliations here when ready. -->
 
-[![Project](https://img.shields.io/badge/Project-EtD--AI-244B5A?style=for-the-badge)](https://github.com/jishengyu423/EtD-AI)
-![Paper](https://img.shields.io/badge/Paper-Coming_Soon-D17955?style=for-the-badge)
-![Dataset](https://img.shields.io/badge/Dataset-Coming_Soon-3B9C89?style=for-the-badge)
-![License](https://img.shields.io/badge/License-TBD-6B7280?style=for-the-badge)
+<p align="center">
+  <a href="https://github.com/jishengyu423/EtD-AI"><img src="https://img.shields.io/badge/Code-GitHub-172A3A?style=flat-square&logo=github" alt="Code"></a>
+  <img src="https://img.shields.io/badge/Paper-Coming_Soon-C66C47?style=flat-square" alt="Paper coming soon">
+  <img src="https://img.shields.io/badge/Dataset-Coming_Soon-2C8E80?style=flat-square" alt="Dataset coming soon">
+  <img src="https://img.shields.io/badge/Models-Coming_Soon-6473B8?style=flat-square" alt="Models coming soon">
+</p>
 
-**EtD-AI learns when evidence is needed, whether retrieved evidence is adequate, and whether a resulting clinical judgment should be accepted.**
-
-</div>
+<p align="center"><a href="#-overview">Overview</a> · <a href="#-why-etd-ai">Motivation</a> · <a href="#-framework">Framework</a> · <a href="#-results">Results</a> · <a href="#-dataset">Dataset</a></p>
 
 ---
 
-## Overview
+## ✦ Overview
 
-Answering a clinical question requires more than retrieving evidence and producing a final response. A reliable workflow must determine **when external evidence is needed**, assess **whether the available evidence is adequate**, and verify **whether the resulting judgment is reliable**.
+Clinical reasoning is not only about producing the correct answer. A trustworthy system must know **when evidence is needed**, determine **whether the available evidence is adequate**, and verify **whether the resulting judgment is reliable**.
 
-EtD-AI formulates this process as three explicit policy decisions that coordinate an LLM without replacing its role as the judgment generator.
+**EtD-AI** turns this evidence-to-judgment chain into three explicit, learnable policy decisions. It coordinates an LLM through a **Router**, **Gatekeeper**, and **Verifier**, while leaving clinical judgment generation to the executor model.
 
-<p align="center">
-  <img src="assets/task-observations-decomposition.png" width="92%" alt="Task observations and problem decomposition">
-</p>
+<p align="center"><img src="assets/task-observations-decomposition.png" width="94%" alt="Task observations and problem decomposition"></p>
 
-Our study is structured around the GRADE Evidence-to-Decision (EtD) framework and evaluates criterion-level evidence-to-judgment reasoning instead of treating clinical decision-making as a single final prediction.
+<table><tr>
+<td align="center" width="25%"><b>325</b><br><sub>Clinical questions</sub></td>
+<td align="center" width="25%"><b>3,851</b><br><sub>Criterion-level pairs</sub></td>
+<td align="center" width="25%"><b>12</b><br><sub>GRADE EtD criteria</sub></td>
+<td align="center" width="25%"><b>96.0–97.9%</b><br><sub>Decision coverage</sub></td>
+</tr></table>
 
-## Highlights
+## ✦ Why EtD-AI?
 
-| | |
-|:--|:--|
-| **Adaptive evidence use** | Routes each criterion-level question to direct answering or evidence retrieval instead of applying one fixed strategy to every case. |
-| **Evidence adequacy checking** | Distinguishes the presence of retrieved passages from their actual sufficiency for the judgment. |
-| **Judgment verification** | Checks the generated judgment and rationale before acceptance and invokes fallback or human review when necessary. |
-| **Evidence-aware training** | Combines multi-task supervised fine-tuning with rubric-weighted preference optimization for three policy roles. |
-| **Cross-model evaluation** | Evaluates the learned policy with multiple LLMs, including a held-out model not used for policy training. |
+Providing more evidence does not consistently improve reasoning. A controlled comparison of **no evidence**, **retrieved evidence**, and **reference evidence** exposes three different failure modes.
 
-## Why Evidence Use Must Be Controlled
+<p align="center"><img src="assets/preliminary-study.png" width="96%" alt="Preliminary study across evidence conditions"></p>
 
-Our preliminary study compares three evidence settings while holding the clinical task and generation format fixed:
+<table><tr>
+<td width="33%" valign="top"><h3>☒ Poisoned Evidence</h3>Retrieval helps evidence-dependent criteria, yet can introduce noise or conflicting information for others.</td>
+<td width="33%" valign="top"><h3>◇ False Support</h3>A correct judgment may coexist with irrelevant or unsupported evidence, hiding grounding failures.</td>
+<td width="33%" valign="top"><h3>◉ Evidence Blindness</h3>Even reference evidence cannot guarantee a reliable judgment when it is misunderstood or misused.</td>
+</tr></table>
 
-- **Closed-book:** no external evidence is provided.
-- **Open-book:** evidence is supplied by a deployed retriever.
-- **Oracle:** reference evidence is provided as a diagnostic condition.
+## ✦ Framework
 
-<p align="center">
-  <img src="assets/preliminary-study.png" width="96%" alt="Preliminary study across evidence conditions">
-</p>
+<table><tr>
+<td align="center" width="33%"><h3>① Router</h3><b>Evidence Need</b><br><sub>Direct answer or retrieve?</sub></td>
+<td align="center" width="33%"><h3>② Gatekeeper</h3><b>Evidence Adequacy</b><br><sub>Is the evidence sufficient?</sub></td>
+<td align="center" width="33%"><h3>③ Verifier</h3><b>Judgment Acceptance</b><br><sub>Should the result be accepted?</sub></td>
+</tr></table>
 
-The comparison reveals three recurring failure patterns:
+<p align="center"><img src="assets/architecture.png" width="92%" alt="EtD-AI inference architecture"></p>
 
-| Observation | What it shows |
-|:--|:--|
-| **Poisoned Evidence** | Retrieval improves evidence-dependent criteria but can reduce accuracy when retrieved passages introduce noise or conflicting information. |
-| **False Support** | A correct judgment can coexist with non-matching or unsupported evidence, so answer accuracy alone cannot establish grounding. |
-| **Evidence Blindness** | Even reference evidence does not guarantee a correct judgment when the model misinterprets or inconsistently uses it. |
+The policy predicts workflow actions; the executor LLM generates the clinical judgment. Rejected candidates switch evidence conditions through a fallback path, while unresolved cases are escalated for human review.
 
-## EtD-AI Framework
+<details><summary><b>Training: multi-task SFT + evidence-aware preference optimization</b></summary><br>
+<p align="center"><img src="assets/training-pipeline.png" width="94%" alt="EtD-AI training pipeline"></p>
+Multi-task SFT initializes the three policy roles from rubric-derived labels. Weighted DPO then uses differences in judgment correctness, evidence support, groundedness, and reasoning quality to refine policy decisions.
+</details>
 
-EtD-AI coordinates clinical reasoning through three specialized policy roles:
+## ✦ Results
 
-1. **Router — Evidence Need:** decides between `direct_answer` and `retrieve_evidence`.
-2. **Gatekeeper — Evidence Adequacy:** decides whether retrieved evidence is `sufficient` or whether to `retrieve_more`.
-3. **Verifier — Judgment Acceptance:** decides whether to `accept` or `reject` a generated judgment and rationale.
+<div align="center"><h3>+0.9–3.2 pp selective accuracy &nbsp;·&nbsp; 15.4% → 3.6% human review</h3><sub>Improvement over the stronger deployable fixed-evidence strategy · Human-review reduction after fallback</sub></div><br>
 
-<p align="center">
-  <img src="assets/architecture.png" width="90%" alt="EtD-AI inference architecture">
-</p>
+<table><tr>
+<td width="43%" valign="top"><img src="assets/correctness-overlap.png" width="100%" alt="Correctness overlap"><br><sub><b>Evidence effects are asymmetric.</b> Some criteria benefit from retrieval, while others retain more correct cases without it.</sub></td>
+<td width="57%" valign="top"><img src="assets/workflow-paths.png" width="100%" alt="Workflow paths"><br><sub><b>Policy paths capture distinct decisions.</b> Direct → Accept reaches 78.9% accuracy, while fallback rescues cases that would otherwise require review.</sub></td>
+</tr></table>
 
-The policy predicts workflow actions, while the executor LLM remains responsible for generating criterion-level clinical judgments. Rejected candidates enter a fallback path, and unresolved cases are escalated for human review.
+> [!NOTE]
+> EtD-AI maintains 96.0–97.9% coverage, while fixed baselines cover all subquestions. One held-out LLM supports transfer beyond training models but does not establish broad cross-model generalization.
 
-## Evidence-aware Reinforcement Learning
+## ✦ Dataset
 
-<p align="center">
-  <img src="assets/training-pipeline.png" width="92%" alt="EtD-AI training pipeline">
-</p>
+We curate **325 structurally complete, expert-reviewed clinical questions** from GRADE Evidence-to-Decision tables, producing **3,851 question–criterion pairs** across 12 criteria. Question-level 70/15/15 splits prevent related criterion instances from crossing training, validation, and test partitions.
 
-Training consists of two stages:
+<p align="center"><code>Problem</code> · <code>Desirable Effects</code> · <code>Undesirable Effects</code> · <code>Certainty</code> · <code>Values</code> · <code>Balance</code><br><code>Resources</code> · <code>Resource Certainty</code> · <code>Cost Effectiveness</code> · <code>Equity</code> · <code>Acceptability</code> · <code>Feasibility</code></p>
 
-- **Multi-task supervised fine-tuning** initializes the Router, Gatekeeper, and Verifier from rubric-derived action labels.
-- **Weighted direct preference optimization** refines policy decisions using the magnitude of evidence and judgment quality differences, giving stronger feedback greater influence.
-
-The supervision rubric evaluates judgment correctness, evidence relevance, groundedness, reasoning quality, and consistency with criterion-specific EtD guidance.
-
-## Dataset
-
-We construct criterion-level supervision from expert-reviewed GRADE EtD tables.
-
-| Statistic | Value |
-|:--|--:|
-| Structured EtD tables collected | 432 |
-| Retained clinical questions | **325** |
-| Question–criterion pairs | **3,851** |
-| EtD criteria | **12** |
-| Question-level split | 70 / 15 / 15 |
-
-The 12 criteria cover Problem, Desirable Effects, Undesirable Effects, Certainty of Evidence, Values, Balance of Effects, Resources Required, Certainty of Resource Evidence, Cost Effectiveness, Equity, Acceptability, and Feasibility.
-
-> The dataset and processing scripts will be released after the associated paper is ready for public release.
-
-## Results
-
-Across the currently reported LLMs, EtD-AI improves selective judgment accuracy over each model's stronger deployable fixed-evidence strategy by **0.9–3.2 percentage points**, while maintaining **96.0–97.9% coverage**.
-
-### When Evidence Helps—and When It Hurts
-
-<p align="center">
-  <img src="assets/correctness-overlap.png" width="68%" alt="Correctness overlap between closed-book and open-book conditions">
-</p>
-
-Evidence-sensitive criteria show that Open-book reasoning solves additional cases, whereas evidence-harmful criteria show the reverse pattern. This asymmetry motivates instance- and criterion-level routing.
-
-### Workflow Behavior
-
-<p align="center">
-  <img src="assets/workflow-paths.png" width="92%" alt="Workflow path distribution and accuracy">
-</p>
-
-- `Direct → Accept` is the highest-accuracy path at **78.9%**.
-- The Verifier activates a fallback path for **12.6%** of subquestions.
-- Fallback reduces the final human-review rate from **15.4% to 3.6%**.
-
-These path-level differences are descriptive evidence that the three policy roles capture distinct workflow decisions; they should not be interpreted as causal estimates.
-
-## Release Status
+## ✦ Release Roadmap
 
 - [x] Task formulation and preliminary study
 - [x] Router–Gatekeeper–Verifier framework
-- [x] Evaluation across training and held-out LLMs
-- [ ] Paper link
-- [ ] Training and evaluation code
-- [ ] Dataset and prompts
-- [ ] Model checkpoints
+- [x] Evaluation with training and held-out executor LLMs
+- [ ] Paper and complete author information
+- [ ] Code, dataset, prompts, and policy checkpoints
 
-## Citation
+## ✦ Citation
 
-Citation information will be added after the paper is publicly available.
+Citation information will be updated when the paper becomes publicly available.
 
 ```bibtex
 @article{etdai2026,
-  title   = {Learning When and How to Use Evidence via Evidence-aware Reinforcement Learning in Multi-agent Clinical Reasoning},
-  author  = {To be announced},
-  year    = {2026}
+  title  = {Learning When and How to Use Evidence via Evidence-aware Reinforcement Learning in Multi-agent Clinical Reasoning},
+  author = {To be announced},
+  year   = {2026}
 }
 ```
 
 ## Disclaimer
 
-EtD-AI is a research framework for studying criterion-level evidence use. It is not an autonomous clinical recommendation system and does not establish clinical safety. Uncertain or high-stakes cases require qualified human oversight.
+EtD-AI is a research framework for studying criterion-level evidence use. It is not an autonomous clinical recommendation system and does not establish clinical safety. High-stakes and uncertain cases require qualified human oversight.
 
 ---
 
-<div align="center">
-  <sub>Built for transparent, evidence-aware clinical reasoning.</sub>
-</div>
+<p align="center"><b>EtD-AI</b> · Explicit evidence decisions for more transparent clinical reasoning</p>
