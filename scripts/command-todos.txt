@@ -1,0 +1,43 @@
+cd EtD
+
+# Step 1 — RAG 索引（一次性）
+bash scripts/build_rag/download_model.sh
+bash scripts/build_rag/build_corpus.sh
+bash scripts/build_rag/build_index.sh           # 加 --force 重编码
+
+# Step 2 — 3 种 method（被评 LLM 跑 EtD judgement）
+bash scripts/run_methods/run_end2end.sh
+MODEL_NAME=gpt-5.5 WORKERS=4 bash scripts/run_methods/run_rag.sh
+bash scripts/run_methods/run_with_evidence.sh
+# 冒烟: LIMIT=1 MODEL_NAME=gpt-4o bash scripts/run_methods/run_rag.sh
+
+# Step 3 — 合并三路实验到单文件
+MODELS=gpt-4o bash scripts/score_rubric/extract.sh
+# 多模型: MODELS=gpt-4o,gpt-5.5 bash scripts/score_rubric/extract.sh
+
+# Step 4 — 规则分（judgement + evidence correctness）
+bash scripts/score_rubric/score.sh
+
+# Step 5 — LLM 判 rubric 4 维（落盘到 judge/ 目录）
+JUDGE_MODEL=gpt-5.5 bash scripts/score_rubric/judge.sh
+# 重跑必须: OVERWRITE=1 JUDGE_MODEL=gpt-5.5 bash scripts/score_rubric/judge.sh
+
+# Step 6 — 合并 rubric 回 scored jsonl（必做）
+JUDGE_MODEL=gpt-5.5 bash scripts/score_rubric/merge.sh
+# → dataset/score_rubric/merge/output/all_models.scored.jsonl
+
+# Step 7 — policy label
+bash scripts/score_rubric/label.sh
+# → dataset/score_rubric/label/output/all_models.labeled.jsonl
+
+# Step 8 — 拆 SFT 训练集 (routing / sufficiency / judgment)
+bash scripts/train/sft/prepare_data.sh
+# → dataset/train/sft/<task>/output/{train,val}.jsonl（test 不生成训练格式）
+
+# RL-only 消融 — 从 Qwen3-8B 直接做等权 DPO，不加载 SFT adapter
+bash scripts/train/rl_only/prepare_all_roles.sh
+WANDB_DISABLED=1 MAX_STEPS=2 bash scripts/train/rl_only/train_all_roles.sh
+# 正式训练：
+bash scripts/train/rl_only/train_all_roles.sh
+# test workflow：
+CUDA_VISIBLE_DEVICES=0 RL_ONLY=1 bash scripts/run_methods/policy_workflow/run_policy_workflow.sh
